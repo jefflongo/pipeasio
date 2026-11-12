@@ -620,7 +620,14 @@ audio_activate(audio_client_t *c)
             PW_KEY_NODE_NAME, c->name, PW_KEY_NODE_DESCRIPTION, c->name, PW_KEY_MEDIA_TYPE, "Audio",
             PW_KEY_MEDIA_CATEGORY, "Duplex", PW_KEY_MEDIA_ROLE, "DSP", PW_KEY_MEDIA_CLASS,
             "Stream/Output/Audio", PW_KEY_NODE_ALWAYS_PROCESS, "true", PW_KEY_NODE_GROUP,
-            "group.dsp.0", "pipeasio.node", "1", NULL);
+            "group.dsp.0", "pipeasio.node", "1",
+            /* We publish a fixed SPA_PARAM_Format and no EnumFormat, so
+             * WirePlumber's si-audio-adapter configure step cannot find a
+             * usable format and tears the item back down ("no usable format
+             * found for node N").  Opt the node out of adapter format
+             * negotiation entirely; module-si-audio-adapter honours this flag
+             * and leaves our fixed format alone. */
+            "item.features.no-format", "true", NULL);
     if (!filter_props)
     {
         ERR("pw_properties_new (filter) failed\n");
