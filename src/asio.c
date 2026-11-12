@@ -2548,10 +2548,21 @@ sample_rate_callback(audio_nframes_t nframes, void *arg)
      * Running, and the backend will not repeat a stable rate.  GetSampleRate
      * must report the measured graph rate regardless of delivery. */
     atomic_store_explicit(&This->host_sample_rate, nframes, memory_order_release);
-    if (pipeasio_host_call_begin(This, PIPEASIO_HOST_SAMPLE_RATE, &token))
+    /* Deliver only a rate the host has not already observed.  GetSampleRate
+     * and SetSampleRate both record what the host last saw, and the backend
+     * re-announces the same figure on the first cycle of every activation, so
+     * delivering that announcement unconditionally pushes a sampleRateChanged
+     * the host never asked for - JUCE treats any sampleRateChanged as a reset
+     * request and tears the driver down ~500ms into every session (the churn
+     * loop).  The announcement only has to survive the window where the host
+     * could not have seen the rate yet; the store above covers the rest. */
+    if (nframes != atomic_load_explicit(&This->host_announced_rate, memory_order_acquire))
     {
-        atomic_store_explicit(&This->host_announced_rate, nframes, memory_order_release);
-        pipeasio_host_call_sample_rate(&token, nframes);
+        if (pipeasio_host_call_begin(This, PIPEASIO_HOST_SAMPLE_RATE, &token))
+        {
+            atomic_store_explicit(&This->host_announced_rate, nframes, memory_order_release);
+            pipeasio_host_call_sample_rate(&token, nframes);
+        }
     }
     pipeasio_host_call_end(&token);
     return 0;
